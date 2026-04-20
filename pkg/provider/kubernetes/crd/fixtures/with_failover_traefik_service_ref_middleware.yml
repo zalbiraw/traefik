@@ -1,0 +1,123 @@
+---
+kind: EndpointSlice
+apiVersion: discovery.k8s.io/v1
+metadata:
+  name: whoami1-abc
+  namespace: default
+  labels:
+    kubernetes.io/service-name: whoami1
+
+addressType: IPv4
+ports:
+  - name: web
+    port: 8080
+endpoints:
+  - addresses:
+      - 10.10.0.1
+      - 10.10.0.2
+    conditions:
+      ready: true
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: whoami1
+  namespace: default
+
+spec:
+  ports:
+    - name: web
+      port: 8080
+  selector:
+    app: traefiklabs
+    task: whoami1
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: stripprefix-main
+  namespace: default
+
+spec:
+  stripPrefix:
+    prefixes:
+      - /tobestripped
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: stripprefix-fallback
+  namespace: default
+
+spec:
+  stripPrefix:
+    prefixes:
+      - /tobestrippedfallback
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: TraefikService
+metadata:
+  name: wrr-main
+  namespace: default
+
+spec:
+  weighted:
+    services:
+      - name: whoami1
+        port: 8080
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: TraefikService
+metadata:
+  name: wrr-fallback
+  namespace: default
+
+spec:
+  weighted:
+    services:
+      - name: whoami1
+        port: 8080
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: TraefikService
+metadata:
+  name: failover-outer
+  namespace: default
+
+spec:
+  failover:
+    service:
+      kind: TraefikService
+      name: wrr-main
+      middlewares:
+        - name: stripprefix-main
+    fallback:
+      kind: TraefikService
+      name: wrr-fallback
+      middlewares:
+        - name: stripprefix-fallback
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: test.route
+  namespace: default
+
+spec:
+  entryPoints:
+    - web
+
+  routes:
+    - match: Host(`foo.com`) && PathPrefix(`/foo`)
+      kind: Rule
+      priority: 12
+      services:
+        - name: failover-outer
+          kind: TraefikService

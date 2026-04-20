@@ -229,7 +229,12 @@ func (m *Manager) getFailoverServiceHandler(ctx context.Context, serviceName str
 	if err != nil {
 		return nil, fmt.Errorf("error creating failover service %v: %w", serviceName, err)
 	}
-	f.SetHandler(serviceHandler)
+
+	mainHandler, err := m.wrapWithEntryMiddlewares(ctx, config.Service, serviceHandler, config.ServiceMiddlewares)
+	if err != nil {
+		return nil, err
+	}
+	f.SetHandler(mainHandler)
 
 	if implementUpdater {
 		if err := updater.RegisterStatusUpdater(func(up bool) {
@@ -244,7 +249,11 @@ func (m *Manager) getFailoverServiceHandler(ctx context.Context, serviceName str
 		return nil, err
 	}
 
-	f.SetFallbackHandler(fallbackHandler)
+	wrappedFallback, err := m.wrapWithEntryMiddlewares(ctx, config.Fallback, fallbackHandler, config.FallbackMiddlewares)
+	if err != nil {
+		return nil, err
+	}
+	f.SetFallbackHandler(wrappedFallback)
 
 	// Do not report the health of the fallback handler.
 	if config.HealthCheck == nil {
@@ -271,6 +280,11 @@ func (m *Manager) getMirrorServiceHandler(ctx context.Context, config *dynamic.M
 		return nil, err
 	}
 
+	mainHandler, err := m.wrapWithEntryMiddlewares(ctx, config.Service, serviceHandler, config.ServiceMiddlewares)
+	if err != nil {
+		return nil, err
+	}
+
 	mirrorBody := dynamic.MirroringDefaultMirrorBody
 	if config.MirrorBody != nil {
 		mirrorBody = *config.MirrorBody
@@ -280,19 +294,39 @@ func (m *Manager) getMirrorServiceHandler(ctx context.Context, config *dynamic.M
 	if config.MaxBodySize != nil {
 		maxBodySize = *config.MaxBodySize
 	}
-	handler := mirror.New(serviceHandler, m.routinePool, mirrorBody, maxBodySize, config.HealthCheck)
+	handler := mirror.New(mainHandler, m.routinePool, mirrorBody, maxBodySize, config.HealthCheck)
 	for _, mirrorConfig := range config.Mirrors {
 		mirrorHandler, err := m.BuildHTTP(ctx, mirrorConfig.Name)
 		if err != nil {
 			return nil, err
 		}
 
-		err = handler.AddMirror(mirrorHandler, mirrorConfig.Percent)
+		wrappedMirror, err := m.wrapWithEntryMiddlewares(ctx, mirrorConfig.Name, mirrorHandler, mirrorConfig.Middlewares)
+		if err != nil {
+			return nil, err
+		}
+
+		err = handler.AddMirror(wrappedMirror, mirrorConfig.Percent)
 		if err != nil {
 			return nil, err
 		}
 	}
 	return handler, nil
+}
+
+func (m *Manager) wrapWithEntryMiddlewares(ctx context.Context, entryName string, handler http.Handler, middlewares []string) (http.Handler, error) {
+	if len(middlewares) == 0 {
+		return handler, nil
+	}
+	if m.middlewareChainBuilder == nil {
+		return nil, errors.New("chain builder not defined")
+	}
+	chain := m.middlewareChainBuilder.BuildMiddlewareChain(ctx, middlewares)
+	wrapped, err := chain.Then(handler)
+	if err != nil {
+		return nil, fmt.Errorf("building middleware chain for service entry %q: %w", entryName, err)
+	}
+	return wrapped, nil
 }
 
 func (m *Manager) getWRRServiceHandler(ctx context.Context, serviceName string, config *dynamic.WeightedRoundRobin) (http.Handler, error) {
@@ -308,7 +342,12 @@ func (m *Manager) getWRRServiceHandler(ctx context.Context, serviceName string, 
 			return nil, err
 		}
 
-		balancer.Add(service.Name, serviceHandler, service.Weight, false)
+		balancerHandler, err := m.wrapWithEntryMiddlewares(ctx, service.Name, serviceHandler, service.Middlewares)
+		if err != nil {
+			return nil, err
+		}
+
+		balancer.Add(service.Name, balancerHandler, service.Weight, false)
 
 		if config.HealthCheck == nil {
 			continue
@@ -383,7 +422,12 @@ func (m *Manager) getHRWServiceHandler(ctx context.Context, serviceName string, 
 			return nil, err
 		}
 
-		balancer.Add(service.Name, serviceHandler, service.Weight, false)
+		balancerHandler, err := m.wrapWithEntryMiddlewares(ctx, service.Name, serviceHandler, service.Middlewares)
+		if err != nil {
+			return nil, err
+		}
+
+		balancer.Add(service.Name, balancerHandler, service.Weight, false)
 
 		if config.HealthCheck == nil {
 			continue
