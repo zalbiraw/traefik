@@ -8909,6 +8909,76 @@ func TestCrossNamespace(t *testing.T) {
 			},
 		},
 		{
+			// A cross-provider middleware reference (e.g. "foo@file") has to pass through
+			// the CRD provider verbatim so the referenced middleware can be resolved later
+			// against the target provider's config. The cross-namespace guard is keyed on
+			// the "@kubernetescrd" suffix specifically, so other providers are unaffected
+			// even when allowCrossNamespace is false.
+			desc:  "HTTP weighted TraefikService entry middleware cross provider",
+			paths: []string{"services.yml", "with_weighted_traefik_service_middleware_cross_provider.yml"},
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers:  map[string]*dynamic.UDPRouter{},
+					Services: map[string]*dynamic.UDPService{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					Routers: map[string]*dynamic.Router{
+						"default-test-route-6b204d94623b3df4370c": {
+							EntryPoints: []string{"foo"},
+							Service:     "default-outer-weighted",
+							Rule:        "Host(`foo.com`) && PathPrefix(`/bar`)",
+							Priority:    12,
+						},
+					},
+					Middlewares: map[string]*dynamic.Middleware{},
+					Services: map[string]*dynamic.Service{
+						"default-outer-weighted": {
+							Weighted: &dynamic.WeightedRoundRobin{
+								Services: []dynamic.WRRService{
+									{
+										Name:        "default-inner-weighted",
+										Weight:      pointer(1),
+										Middlewares: []string{"stripprefix@file"},
+									},
+								},
+							},
+						},
+						"default-inner-weighted": {
+							Weighted: &dynamic.WeightedRoundRobin{
+								Services: []dynamic.WRRService{
+									{
+										Name:   "default-whoami-80",
+										Weight: pointer(1),
+									},
+								},
+							},
+						},
+						"default-whoami-80": {
+							LoadBalancer: &dynamic.ServersLoadBalancer{
+								Strategy: dynamic.BalancerStrategyWRR,
+								Servers: []dynamic.Server{
+									{URL: "http://10.10.0.1:80"},
+									{URL: "http://10.10.0.2:80"},
+								},
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
+							},
+						},
+					},
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+				},
+				TLS: &dynamic.TLSConfiguration{},
+			},
+		},
+		{
 			// When allowCrossNamespace is false, the outer weighted TraefikService fails to
 			// build because its entry references a middleware in another namespace, so it
 			// is dropped from conf.HTTP.Services. The router still references it (broken
