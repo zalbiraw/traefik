@@ -35,6 +35,8 @@ type MiddlewareTCPSpec struct {
 	// This middleware accepts/refuses connections based on the client IP.
 	// More info: https://doc.traefik.io/traefik/v3.7/reference/routing-configuration/tcp/middlewares/ipallowlist/
 	IPAllowList *dynamic.TCPIPAllowList `json:"ipAllowList,omitempty"`
+	// Drop defines the Drop middleware configuration.
+	Drop *dynamic.TCPDrop `json:"drop,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

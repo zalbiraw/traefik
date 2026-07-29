@@ -41,6 +41,9 @@ spec:
           spec:
             description: MiddlewareTCPSpec defines the desired state of a MiddlewareTCP.
             properties:
+              drop:
+                description: Drop defines the Drop middleware configuration.
+                type: object
               inFlightConn:
                 description: InFlightConn defines the InFlightConn middleware configuration.
                 properties:

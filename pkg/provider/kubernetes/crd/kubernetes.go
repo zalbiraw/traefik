@@ -343,6 +343,7 @@ func (p *Provider) loadConfigurationFromCRD(ctx context.Context, client Client) 
 			InFlightConn: middlewareTCP.Spec.InFlightConn,
 			IPWhiteList:  middlewareTCP.Spec.IPWhiteList,
 			IPAllowList:  middlewareTCP.Spec.IPAllowList,
+			Drop:         middlewareTCP.Spec.Drop,
 		}
 	}
 

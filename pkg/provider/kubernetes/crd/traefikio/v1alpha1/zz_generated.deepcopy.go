@@ -1117,6 +1117,11 @@ func (in *MiddlewareTCPSpec) DeepCopyInto(out *MiddlewareTCPSpec) {
 		*out = new(dynamic.TCPIPAllowList)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.Drop != nil {
+		in, out := &in.Drop, &out.Drop
+		*out = new(dynamic.TCPDrop)
+		**out = **in
+	}
 	return
 }
 
