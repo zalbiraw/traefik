@@ -8,7 +8,14 @@ type TCPMiddleware struct {
 	// Deprecated: please use IPAllowList instead.
 	IPWhiteList *TCPIPWhiteList `json:"ipWhiteList,omitempty" toml:"ipWhiteList,omitempty" yaml:"ipWhiteList,omitempty" export:"true"`
 	IPAllowList *TCPIPAllowList `json:"ipAllowList,omitempty" toml:"ipAllowList,omitempty" yaml:"ipAllowList,omitempty" export:"true"`
+	Drop        *TCPDrop        `json:"drop,omitempty" toml:"drop,omitempty" yaml:"drop,omitempty" label:"allowEmpty" file:"allowEmpty" kv:"allowEmpty" export:"true"`
 }
+
+// +k8s:deepcopy-gen=true
+
+// TCPDrop holds the TCP Drop middleware configuration.
+// This middleware closes the connection without sending anything to the client.
+type TCPDrop struct{}
 
 // +k8s:deepcopy-gen=true
 

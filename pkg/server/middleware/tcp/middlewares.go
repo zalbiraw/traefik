@@ -8,6 +8,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/traefik/traefik/v3/pkg/config/runtime"
+	"github.com/traefik/traefik/v3/pkg/middlewares/tcp/drop"
 	"github.com/traefik/traefik/v3/pkg/middlewares/tcp/inflightconn"
 	"github.com/traefik/traefik/v3/pkg/middlewares/tcp/ipallowlist"
 	"github.com/traefik/traefik/v3/pkg/middlewares/tcp/ipwhitelist"
@@ -110,6 +111,13 @@ func (b *Builder) buildConstructor(ctx context.Context, middlewareName string) (
 	if config.IPAllowList != nil {
 		middleware = func(next tcp.Handler) (tcp.Handler, error) {
 			return ipallowlist.New(ctx, next, *config.IPAllowList, middlewareName)
+		}
+	}
+
+	// Drop
+	if config.Drop != nil {
+		middleware = func(next tcp.Handler) (tcp.Handler, error) {
+			return drop.New(ctx, next, *config.Drop, middlewareName)
 		}
 	}
 
