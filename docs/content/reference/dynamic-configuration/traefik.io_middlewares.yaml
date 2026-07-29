@@ -260,6 +260,11 @@ spec:
                       containing user credentials.
                     type: string
                 type: object
+              drop:
+                description: |-
+                  Drop holds the drop middleware configuration.
+                  This middleware closes the connection without sending any response to the client.
+                type: object
               encodedCharacters:
                 description: EncodedCharacters configures which encoded characters
                   are allowed in the request path.
