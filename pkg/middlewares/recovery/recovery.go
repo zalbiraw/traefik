@@ -38,7 +38,7 @@ func (re *recovery) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 func recoverFunc(rw recoveryResponseWriter, req *http.Request) {
 	if err := recover(); err != nil {
-		defer rw.finalizeResponse()
+		defer rw.finalizeResponse(err)
 
 		logger := middlewares.GetLogger(req.Context(), middlewareName, typeName)
 		if !shouldLogPanic(err) {
@@ -58,13 +58,13 @@ func recoverFunc(rw recoveryResponseWriter, req *http.Request) {
 // https://github.com/golang/go/blob/c33153f7b416c03983324b3e8f869ce1116d84bc/src/net/http/httputil/reverseproxy.go#L284
 func shouldLogPanic(panicValue any) bool {
 	//nolint:errorlint // false-positive because panicValue is an interface.
-	return panicValue != nil && panicValue != http.ErrAbortHandler
+	return panicValue != nil && panicValue != http.ErrAbortHandler && panicValue != middlewares.ErrDrop
 }
 
 type recoveryResponseWriter interface {
 	http.ResponseWriter
 
-	finalizeResponse()
+	finalizeResponse(panicValue any)
 }
 
 func newRecoveryResponseWriter(rw http.ResponseWriter) recoveryResponseWriter {
@@ -119,10 +119,13 @@ func (r *responseWriterWrapper) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return nil, nil, fmt.Errorf("not a hijacker: %T", r.rw)
 }
 
-func (r *responseWriterWrapper) finalizeResponse() {
+func (r *responseWriterWrapper) finalizeResponse(panicValue any) {
+	// A handler panicking with middlewares.ErrDrop is deliberately dropping the connection,
+	// so the client must not be sent anything, even though the response has not started yet.
 	// If headers have been sent this is not possible to respond with an HTTP error,
 	// and we let the server abort the response silently thanks to the http.ErrAbortHandler sentinel panic value.
-	if r.headersSent {
+	//nolint:errorlint // false-positive because panicValue is an interface.
+	if r.headersSent || panicValue == middlewares.ErrDrop {
 		panic(http.ErrAbortHandler)
 	}
 

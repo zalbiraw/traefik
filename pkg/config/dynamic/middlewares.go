@@ -47,6 +47,7 @@ type Middleware struct {
 	Retry             *Retry             `json:"retry,omitempty" toml:"retry,omitempty" yaml:"retry,omitempty" export:"true"`
 	ContentType       *ContentType       `json:"contentType,omitempty" toml:"contentType,omitempty" yaml:"contentType,omitempty" label:"allowEmpty" file:"allowEmpty" kv:"allowEmpty" export:"true"`
 	GrpcWeb           *GrpcWeb           `json:"grpcWeb,omitempty" toml:"grpcWeb,omitempty" yaml:"grpcWeb,omitempty" export:"true"`
+	Drop              *Drop              `json:"drop,omitempty" toml:"drop,omitempty" yaml:"drop,omitempty" label:"allowEmpty" file:"allowEmpty" kv:"allowEmpty" export:"true"`
 
 	Plugin map[string]PluginConf `json:"plugin,omitempty" toml:"plugin,omitempty" yaml:"plugin,omitempty" export:"true"`
 
@@ -85,6 +86,12 @@ type ContentType struct {
 	// Deprecated: AutoDetect option is deprecated, Content-Type middleware is only meant to be used to enable the content-type detection, please remove any usage of this option.
 	AutoDetect *bool `json:"autoDetect,omitempty" toml:"autoDetect,omitempty" yaml:"autoDetect,omitempty" export:"true"`
 }
+
+// +k8s:deepcopy-gen=true
+
+// Drop holds the drop middleware configuration.
+// This middleware closes the connection without sending any response to the client.
+type Drop struct{}
 
 // +k8s:deepcopy-gen=true
 
